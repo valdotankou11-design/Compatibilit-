@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Compatible avec Joël ?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Poppins:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<!-- Client Supabase : remplace window.storage (qui n'existe que dans l'aperçu
+     artifact de Claude) par une vraie base de données, utilisable une fois le
+     site déployé ailleurs (Vercel, etc.) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#100c1c;
+    --bg2:#1a1330;
+    --panel:#1e1834;
+    --panel2:#261e42;
+    --pink:#ff7aa8;
+    --pink-dim:#ff7aa855;
+    --gold:#ffcb66;
+    --text:#f3ecdd;
+    --text-dim:#b7aecf;
+    --border:rgba(255,255,255,0.09);
+    --danger:#ff8a80;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:radial-gradient(circle at 20% 0%, #241a3d 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Poppins',sans-serif;
+    overflow-x:hidden;
+  }
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none;}
+  .star{position:absolute;background:#fff;border-radius:50%;opacity:0.5;animation:twinkle 3.5s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{opacity:0.15;}50%{opacity:0.85;}}
+  /* ---- Squelette de page ----
+     #page-flow empile la boîte de dialogue puis le contenu, et centre
+     verticalement l'ensemble quand il tient dans l'écran. */
+  #page-flow{
+    position:relative;z-index:1;min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px 16px 48px;gap:0;
+  }
+  #app{width:100%;display:flex;flex-direction:column;align-items:center;}
+  .eyebrow{
+    font-family:'Space Mono',monospace;
+    font-size:11px;letter-spacing:2.5px;text-transform:uppercase;
+    color:var(--gold);opacity:0.85;margin-bottom:10px;text-align:center;
+  }
+  h1.title{
+    font-family:'Zen Maru Gothic',sans-serif;font-weight:900;
+    font-size:clamp(26px,7vw,40px);text-align:center;line-height:1.2;
+    margin:0 0 14px;
+    background:linear-gradient(90deg,var(--pink),var(--gold));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .lede{color:var(--text-dim);text-align:center;max-width:420px;font-size:15px;line-height:1.6;margin-bottom:28px;}
+  .card{
+    width:100%;max-width:420px;background:var(--panel);
+    border:1px solid var(--border);border-radius:20px;padding:24px;
+  }
+  input[type=text], input[type=tel]{
+    width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);font-family:'Poppins',sans-serif;font-size:16px;
+    outline:none;transition:border-color .2s;
+  }
+  input:focus{border-color:var(--pink);}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    width:100%;margin-top:14px;padding:14px 18px;border:none;border-radius:12px;
+    background:linear-gradient(90deg,var(--pink),#ff9ec1);color:#1a0f16;font-weight:700;
+    font-size:15px;cursor:pointer;transition:transform .15s, box-shadow .15s;
+    font-family:'Poppins',sans-serif;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px var(--pink-dim);}
+  .btn:active{transform:translateY(0);}
+  .btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text-dim);}
+
+  /* ---- Boîte de dialogue (roman visuel) ----
+     Avant : ancrée en bas de l'écran par-dessus les choix.
+     Maintenant : un bloc normal, affiché AU-DESSUS des choix, qui suit
+     simplement le flux de la page comme une bulle de conversation. */
+  #vn-wrap{width:100%;display:flex;justify-content:center;margin-bottom:22px;}
+  #vn-box{
+    width:100%;max-width:460px;background:linear-gradient(180deg,#241d3d,#1a1530);
+    border:1px solid var(--border);border-radius:18px;padding:16px 18px 18px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.35);
+  }
+  #vn-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  #vn-avatar{
+    width:34px;height:34px;border-radius:50%;flex-shrink:0;
+    background:conic-gradient(from 210deg, var(--pink), var(--gold), var(--pink));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Zen Maru Gothic',sans-serif;font-weight:700;color:#20142a;font-size:14px;
+  }
+  #vn-name{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:1.5px;color:var(--gold);text-transform:uppercase;}
+  #vn-text{font-size:15.5px;line-height:1.55;min-height:44px;color:var(--text);}
+  #vn-text .cursor{opacity:0.6;animation:blink 0.9s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  #choices{display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px;margin-bottom:14px;}
+  .choice-btn{
+    padding:13px 16px;border-radius:12px;border:1px solid var(--border);
+    background:var(--panel);color:var(--text);font-size:14.5px;text-align:left;
+    cursor:pointer;transition:all .15s;opacity:0;transform:translateY(8px);
+    animation:rise .35s forwards;font-family:'Poppins',sans-serif;
+  }
+  .choice-btn:nth-child(1){animation-delay:.05s;}
+  .choice-btn:nth-child(2){animation-delay:.15s;}
+  .choice-btn:nth-child(3){animation-delay:.25s;}
+  .choice-btn:nth-child(4){animation-delay:.35s;}
+  @keyframes rise{to{opacity:1;transform:translateY(0);}}
+  .choice-btn:hover{border-color:var(--pink);background:var(--panel2);transform:translateX(2px);}
+  .choice-btn:active{background:var(--pink-dim);}
+
+  .progress-track{width:100%;max-width:460px;height:4px;background:var(--panel2);border-radius:4px;margin-bottom:18px;overflow:hidden;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--pink),var(--gold));border-radius:4px;transition:width .4s ease;}
+
+  .score-ring{width:180px;height:180px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:8px auto 20px;position:relative;}
+  .score-num{font-family:'Zen Maru Gothic',sans-serif;font-weight:900;font-size:42px;color:var(--text);}
+  .score-pct{font-family:'Space Mono',monospace;font-size:13px;color:var(--text-dim);position:absolute;bottom:38px;}
+
+  .admin-gate{max-width:340px;width:100%;text-align:center;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border);}
+  th{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);font-weight:400;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-family:'Space Mono',monospace;}
+  .pill.high{background:#2a4d3a;color:#8fd9a8;}
+  .pill.mid{background:#4d4a2a;color:#e0d68f;}
+  .pill.low{background:#4d2a2a;color:#e08f8f;}
+  .row-detail{background:var(--panel2);border-radius:10px;padding:12px;margin-top:6px;font-size:12.5px;color:var(--text-dim);}
+  .admin-wrap{width:100%;max-width:720px;padding-bottom:60px;}
+  .admin-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  label.small{font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);display:block;margin:10px 0 4px;}
+  .q-opt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .q-opt-row input[type=radio]{accent-color:var(--pink);}
+  .hidden{display:none !important;}
+  a.tiny-link{color:var(--text-dim);font-size:12px;text-decoration:underline;cursor:pointer;}
+  .empty-state{color:var(--text-dim);font-size:13px;text-align:center;padding:30px 0;}
+
+  /* ---- Responsive mobile pour le dashboard /admin ----
+     Un tableau à 7 colonnes ne tient pas sur un écran de téléphone : sous
+     640px, chaque ligne devient une petite fiche empilée, avec le nom de la
+     colonne affiché devant la valeur (via l'attribut data-label posé en JS). */
+  @media (max-width: 640px){
+    .admin-wrap table, .admin-wrap thead, .admin-wrap tbody,
+    .admin-wrap th, .admin-wrap td, .admin-wrap tr{ display:block; }
+    .admin-wrap thead{ display:none; }
+    .admin-wrap tbody tr:not(.detail-row){
+      background:var(--panel2);border:1px solid var(--border);
+      border-radius:12px;padding:10px 14px;margin-bottom:10px;
+    }
+    .admin-wrap tbody tr:not(.detail-row) td{
+      border:none;padding:6px 0;display:flex;
+      justify-content:space-between;align-items:center;gap:10px;
+    }
+    .admin-wrap tbody tr:not(.detail-row) td[data-label]::before{
+      content:attr(data-label);
+      font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;
+      text-transform:uppercase;color:var(--gold);flex-shrink:0;
+    }
+    .admin-wrap tbody tr.detail-row td{ padding:0; }
+    .admin-top{ align-items:flex-start; }
+    h1.title{ font-size:22px !important; }
+  }
+  /* Petite signature manuscrite, pour une touche plus personnelle qu'un simple écran de quiz */
+  .signature{
+    font-family:'Caveat',cursive;font-size:22px;color:var(--gold);
+    text-align:center;margin-top:14px;opacity:0.9;
+  }
+  .social-row{display:flex;gap:18px;justify-content:center;margin:6px 0 14px;}
+  .social-btn{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);font-size:11px;font-family:'Space Mono',monospace;opacity:0;transform:translateY(8px);animation:rise .35s forwards;}
+  .social-btn:nth-child(1){animation-delay:.05s;}
+  .social-btn:nth-child(2){animation-delay:.15s;}
+  .social-btn:nth-child(3){animation-delay:.25s;}
+  .social-icon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .15s;}
+  .social-btn:hover .social-icon{transform:translateY(-3px);}
+  .social-icon.wa{background:#25D366;}
+  .social-icon.tt{
+    /* Fond noir classique du logo TikTok, mais avec un fin anneau dans ses
+       couleurs de marque (cyan + rose) pour qu'il se détache bien du fond
+       sombre du site — sinon un cercle noir sur fond sombre se fond dedans. */
+    background:#0d0d0d;
+    box-shadow:0 0 0 2px #25F4EE, 0 0 0 4px #FE2C55;
+  }
+  .social-icon.sc{background:#FFFC00;}
+</style>
+</head>
+<body>
+<!-- Zone de fond étoilée, purement décorative -->
+<div id="stars"></div>
+
+<!-- Conteneur principal : empile la boîte de dialogue puis le contenu (questions, formulaires, etc.) -->
+<div id="page-flow">
+  <!-- Boîte de dialogue façon roman visuel : avatar + prénom de Joël + texte qui s'écrit -->
+  <div id="vn-wrap" class="hidden">
+    <div id="vn-box">
+      <div id="vn-header">
+        <div id="vn-avatar">J</div>
+        <div id="vn-name">Joël</div>
+      </div>
+      <div id="vn-text"></div>
+    </div>
+  </div>
+  <!-- Contenu dynamique : formulaires, questions, résultats, admin... injecté par le JS -->
+  <div id="app"></div>
+</div>
+
+<script>
+/* ---------- Connexion Supabase ----------
+   Remplace window.storage (qui ne fonctionne que dans l'aperçu Claude) par
+   une vraie base de données, pour que /admin fonctionne aussi une fois le
+   site déployé sur Vercel.
+   ⚠️ La clé "anon" est volontairement publique (c'est le fonctionnement normal
+   de Supabase côté client) : la protection réelle vient des règles Row Level
+   Security définies sur les tables, pas de cette clé. */
+const SUPABASE_URL = "https://qdomhuggewyhgrnabdan.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkb21odWdnZXd5aGdybmFiZGFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNzQ3NzEsImV4cCI6MjA5OTg1MDc3MX0.7ofr3hBK8TJ6kI_-aefs6HqEULwId9bfauAM9lvaDs0";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ---------- Default questions (Joël's correct answers marked) ---------- */
+const DEFAULT_QUESTIONS = [
+  {text:"Quand tu penses à une soirée parfaite, tu vois plutôt…", options:["Une sortie animée entre amis 🎉","Un film ou une série, blottie sous une couverture 🍿","Une session shopping 🛍️","Rien de précis, tu improvises ✨"], correctIndex:1},
+  {text:"Ton rapport aux mangas et animes ?", options:["Jamais regardé, ça ne me parle pas","J'en regarde de temps en temps 🎬","Je suis fan, j'ai ma liste de favoris 📚","Je préfère les dessins animés occidentaux"], correctIndex:2},
+  {text:"Dans un couple, la communication doit être…", options:["Totale, on se dit tout 🗣️","Sélective, chacun garde son jardin secret","Minimale, les actes parlent plus que les mots","Ça dépend du jour"], correctIndex:0},
+  {text:"Face à un désaccord, tu préfères…", options:["En parler tout de suite, cash 💬","Laisser retomber la pression avant d'en discuter","Éviter le sujet","Écrire un message plutôt que d'en parler en direct"], correctIndex:0},
+  {text:"L'ambition professionnelle chez un partenaire, c'est…", options:["Indispensable, il doit avoir de grands projets 🚀","Plaisant mais pas prioritaire","Peu important, l'essentiel est ailleurs","Pas vraiment un sujet qui compte"], correctIndex:0},
+  {text:"Ta définition de la fidélité ?", options:["Ne jamais regarder ailleurs, même en pensée 🔒","Rester ensemble mais garder sa liberté d'esprit","C'est une construction sociale","Ça se discute selon le couple"], correctIndex:0},
+  {text:"Un partenaire un peu jaloux, tu trouves ça…", options:["Rassurant, ça prouve qu'il tient à moi ❤️","Ça dépend du niveau","Étouffant, je fuis direct","Je n'ai jamais rencontré ça"], correctIndex:0},
+  {text:"Ton rythme social idéal ?", options:["Sortir tout le temps, voir du monde","Un bon équilibre entre sorties et soirées calmes ⚖️","Rester à la maison, toujours","Beaucoup de réseaux sociaux, peu de sorties réelles"], correctIndex:1},
+  {text:"Ce qui te fait le plus rire chez un partenaire ?", options:["L'humour noir","Les petites piques taquines, le second degré 😏","L'humour absurde","Je ne ris pas facilement"], correctIndex:1},
+  {text:"La famille, dans une relation sérieuse, c'est…", options:["Central, elle doit être intégrée à la relation 👪","Important mais séparé de la relation","Un sujet secondaire","Je préfère garder les univers séparés"], correctIndex:0}
+];
+
+const ADMIN_PASSWORD = "valdo81";
+
+let STATE = {
+  name:"", questions:[], answers:[], current:0, score:0,
+  wantsMore:null, jealousyReaction:null, phone:""
+};
+
+const app = document.getElementById('app');
+const vnWrap = document.getElementById('vn-wrap');
+const vnText = document.getElementById('vn-text');
+
+/* ---------- Stars background ---------- */
+function buildStars(){
+  const el = document.getElementById('stars');
+  let html = '';
+  for(let i=0;i<50;i++){
+    const size = (Math.random()*2+1).toFixed(1);
+    const top = (Math.random()*100).toFixed(1);
+    const left = (Math.random()*100).toFixed(1);
+    const delay = (Math.random()*3.5).toFixed(2);
+    html += `<div class="star" style="width:${size}px;height:${size}px;top:${top}%;left:${left}%;animation-delay:${delay}s;"></div>`;
+  }
+  el.innerHTML = html;
+}
+buildStars();
+
+/* ---------- Typewriter ---------- */
+function typeInto(el, text, speed){
+  return new Promise(resolve=>{
+    el.innerHTML = '';
+    let i = 0;
+    const cursor = document.createElement('span');
+    cursor.className='cursor'; cursor.textContent='▋';
+    function step(){
+      if(i <= text.length){
+        el.textContent = text.slice(0,i);
+        el.appendChild(cursor);
+        i++;
+        setTimeout(step, speed||16);
+      } else {
+        cursor.remove();
+        resolve();
+      }
+    }
+    step();
+  });
+}
+
+function showVN(){ vnWrap.classList.remove('hidden'); }
+function hideVN(){ vnWrap.classList.add('hidden'); }
+
+/* ---------- Router ---------- */
+window.addEventListener('hashchange', route);
+route();
+
+function route(){
+  if(location.hash === '#admin'){
+    hideVN();
+    renderAdminGate();
+  } else {
+    renderIntro();
+  }
+}
+
+/* ================= QUIZ FLOW ================= */
+
+function renderIntro(){
+  hideVN();
+  app.innerHTML = `
+    <div class="eyebrow">Un quiz, une réponse</div>
+    <h1 class="title">Compatible avec<br/>Joël Valdo ?</h1>
+    <p class="lede">Quelques questions, un peu d'honnêteté, et on saura si nos univers s'accordent. Ça commence par ton prénom.</p>
+    <div class="card">
+      <input type="text" id="nameInput" placeholder="Ton prénom" autocomplete="off" />
+      <button class="btn" id="startBtn">Commencer ✨</button>
+    </div>
+    <div class="signature">— Joël Valdo</div>
+  `;
+  const nameInput = document.getElementById('nameInput');
+  const startBtn = document.getElementById('startBtn');
+  nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') startBtn.click(); });
+  startBtn.addEventListener('click', async ()=>{
+    const name = nameInput.value.trim();
+    if(!name){ nameInput.style.borderColor = '#ff8a80'; return; }
+    STATE.name = name;
+    await loadQuestions();
+    STATE.current = 0;
+    STATE.answers = [];
+    startQuiz();
+  });
+}
+
+// Charge les questions depuis Supabase (modifiées éventuellement depuis
+// /admin). Si la table est vide (premier lancement), on y insère les 10
+// questions par défaut pour que l'admin puisse ensuite les éditer.
+async function loadQuestions(){
+  const { data, error } = await sb.from('quiz_questions').select('*').order('position', { ascending:true });
+  if(error){ console.error('Erreur de chargement des questions :', error); }
+  if(!error && data && data.length > 0){
+    STATE.questions = data.map(row => ({ id: row.id, text: row.text, options: row.options, correctIndex: row.correct_index }));
+  } else {
+    const seedRows = DEFAULT_QUESTIONS.map((q, i) => ({ text: q.text, options: q.options, correct_index: q.correctIndex, position: i }));
+    const { data: inserted, error: insertError } = await sb.from('quiz_questions').insert(seedRows).select();
+    if(!insertError && inserted){
+      STATE.questions = inserted.map(row => ({ id: row.id, text: row.text, options: row.options, correctIndex: row.correct_index }));
+    } else {
+      STATE.questions = DEFAULT_QUESTIONS;
+    }
+  }
+}
+
+async function startQuiz(){
+  app.innerHTML = `<div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill" style="width:0%"></div></div><div id="choices"></div>`;
+  showVN();
+  const introMsg = `Ravi de te lire, ${STATE.name}. Prête ? On y va tout doux.`;
+  await typeInto(vnText, introMsg, 18);
+  // Plutôt qu'un délai automatique (jamais assez long pour tout le monde),
+  // on attend un vrai geste : elle clique "Continuer" quand elle a fini de lire.
+  await waitForContinue("Continuer");
+  askQuestion();
+}
+
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// Affiche un unique bouton "Continuer" dans #choices et attend que
+// l'utilisatrice clique dessus avant de poursuivre. Plus fiable qu'un délai
+// automatique : c'est elle qui décide quand elle a fini de lire le message.
+function waitForContinue(label){
+  return new Promise(resolve=>{
+    const choicesEl = document.getElementById('choices');
+    if(!choicesEl){ resolve(); return; }
+    choicesEl.innerHTML = `<button class="choice-btn" id="continueChoiceBtn" style="text-align:center;">${label || 'Continuer'}</button>`;
+    document.getElementById('continueChoiceBtn').addEventListener('click', ()=>{
+      choicesEl.innerHTML = '';
+      resolve();
+    });
+  });
+}
+
+// Ajoute la petite signature manuscrite en bas de page, sans la dupliquer
+// si l'utilisatrice revoit plusieurs fois un écran de fin.
+function addSignatureOnce(){
+  if(!document.querySelector('.signature')){
+    app.insertAdjacentHTML('beforeend', `<div class="signature">— Joël Valdo</div>`);
+  }
+}
+
+async function askQuestion(){
+  const q = STATE.questions[STATE.current];
+  const total = STATE.questions.length;
+  const fill = document.getElementById('progressFill');
+  if(fill) fill.style.width = Math.round((STATE.current/total)*100) + '%';
+
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = '';
+  await typeInto(vnText, q.text, 14);
+
+  q.options.forEach((opt, idx)=>{
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = opt;
+    btn.addEventListener('click', ()=> handleAnswer(idx));
+    choicesEl.appendChild(btn);
+  });
+}
+
+async function handleAnswer(idx){
+  const q = STATE.questions[STATE.current];
+  STATE.answers.push({question:q.text, chosen:q.options[idx], correctAnswer:q.options[q.correctIndex], isMatch: idx === q.correctIndex});
+  STATE.current++;
+  if(STATE.current < STATE.questions.length){
+    askQuestion();
+  } else {
+    finishQuiz();
+  }
+}
+
+async function finishQuiz(){
+  // Le score de compatibilité = (nombre de réponses qui matchent celles de
+  // Joël) / (nombre total de questions), converti en pourcentage arrondi.
+  const matches = STATE.answers.filter(a=>a.isMatch).length;
+  const total = STATE.answers.length;
+  STATE.score = Math.round((matches/total)*100);
+  const fill = document.getElementById('progressFill');
+  if(fill) fill.style.width = '100%';
+  document.getElementById('choices').innerHTML = '';
+  const calcMsg = `C'est noté. Je calcule tout ça…`;
+  await typeInto(vnText, calcMsg, 18);
+  await waitForContinue("Voir mon résultat");
+  showResult();
+}
+
+function ringColor(score){
+  if(score >= 75) return ['#ff7aa8','#ffcb66'];
+  if(score >= 45) return ['#ffcb66','#e0a85f'];
+  return ['#8a7aa8','#5f5580'];
+}
+
+async function showResult(){
+  hideVN();
+  const [c1,c2] = ringColor(STATE.score);
+  app.innerHTML = `
+    <div class="eyebrow">Résultat</div>
+    <h1 class="title" style="font-size:24px;">Ton taux de compatibilité<br/>avec Joël</h1>
+    <div class="score-ring" style="background:conic-gradient(${c1} ${STATE.score*3.6}deg, #241d3d 0deg);">
+      <div style="width:150px;height:150px;border-radius:50%;background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div class="score-num">${STATE.score}%</div>
+      </div>
+    </div>
+    <div class="card" style="text-align:center;">
+      <p style="color:var(--text-dim);font-size:14px;margin:0 0 6px;">${resultLine(STATE.score)}</p>
+      <button class="btn" id="continueBtn">Continuer</button>
+    </div>
+  `;
+  document.getElementById('continueBtn').addEventListener('click', askMore);
+
+  // persist response now (score locked in)
+  await persistResponse();
+}
+
+function resultLine(score){
+  if(score >= 80) return "De sacrées bases en commun. 👀";
+  if(score >= 55) return "Il y a clairement quelque chose à explorer.";
+  if(score >= 30) return "Des différences, mais rien d'insurmontable.";
+  return "On ne voit pas tout à fait le monde pareil… et alors ?";
+}
+
+let RESPONSE_ID = null;
+
+// Crée l'entrée de réponse dans Supabase dès que le score est connu, avec un
+// identifiant unique généré côté client. Elle sera complétée au fil du
+// parcours (updateResponse) au fur et à mesure que la personne avance dans
+// les écrans suivants (envie d'aller plus loin, réaction à la jalousie,
+// téléphone…).
+async function persistResponse(){
+  RESPONSE_ID = 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const payload = {
+    id: RESPONSE_ID,
+    name: STATE.name,
+    score: STATE.score,
+    answers: STATE.answers,
+    wants_more: null,
+    jealousy_reaction: null,
+    phone: null
+  };
+  const { error } = await sb.from('quiz_responses').insert(payload);
+  if(error) console.error('Erreur d\'enregistrement de la réponse :', error);
+}
+
+// Met à jour l'entrée déjà créée (par ex. quand elle répond "oui" à "plus
+// ample connaissance", ou quand elle laisse son numéro). Les noms de champs
+// passés en camelCase sont convertis vers les colonnes snake_case de la table.
+async function updateResponse(fields){
+  if(!RESPONSE_ID) return;
+  const mapped = {};
+  if('wantsMore' in fields) mapped.wants_more = fields.wantsMore;
+  if('jealousyReaction' in fields) mapped.jealousy_reaction = fields.jealousyReaction;
+  if('phone' in fields) mapped.phone = fields.phone;
+  const { error } = await sb.from('quiz_responses').update(mapped).eq('id', RESPONSE_ID);
+  if(error) console.error('Erreur de mise à jour de la réponse :', error);
+}
+
+async function askMore(){
+  showVN();
+  app.innerHTML = `<div id="choices"></div>`;
+  await typeInto(vnText, `Merci d'être allée jusqu'au bout, ${STATE.name}. Une dernière chose : envie de faire plus ample connaissance ?`, 16);
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = `
+    <button class="choice-btn" id="yesBtn">Oui, avec plaisir 😊</button>
+    <button class="choice-btn" id="noBtn">Non, merci</button>
+  `;
+  document.getElementById('yesBtn').addEventListener('click', async ()=>{
+    STATE.wantsMore = true;
+    await updateResponse({wantsMore:true});
+    showReveal();
+  });
+  document.getElementById('noBtn').addEventListener('click', async ()=>{
+    STATE.wantsMore = false;
+    await updateResponse({wantsMore:false});
+    endBye();
+  });
+}
+
+async function endBye(){
+  document.getElementById('choices').innerHTML = '';
+  await typeInto(vnText, `D'accord, ${STATE.name}. Passe une excellente journée. 🌸`, 18);
+  addSignatureOnce();
+}
+
+async function showReveal(){
+  document.getElementById('choices').innerHTML = '';
+  await typeInto(vnText, `Avant d'aller plus loin, une petite confession : je peux être très jaloux et possessif quand je tiens à quelqu'un. 😅 C'est mon petit péché mignon.`, 14);
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = `
+    <button class="choice-btn" id="bothersBtn">Ça me dérange</button>
+    <button class="choice-btn" id="finePBtn">Ça ne me dérange pas</button>
+  `;
+  document.getElementById('bothersBtn').addEventListener('click', async ()=>{
+    STATE.jealousyReaction = 'bothers';
+    await updateResponse({jealousyReaction:'bothers'});
+    endSad();
+  });
+  document.getElementById('finePBtn').addEventListener('click', async ()=>{
+    STATE.jealousyReaction = 'fine';
+    await updateResponse({jealousyReaction:'fine'});
+    askPhone();
+  });
+}
+
+async function endSad(){
+  document.getElementById('choices').innerHTML = '';
+  await typeInto(vnText, `C'est dommage… mais je suis content que tu sois arrivée jusque là, ${STATE.name}. Prends soin de toi. 🌙`, 18);
+  addSignatureOnce();
+}
+
+async function askPhone(){
+  await typeInto(vnText, `Parfait. 🥹 Laisse-moi ton numéro, je te recontacte très vite.`, 16);
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <input type="tel" id="phoneInput" placeholder="Ton numéro" />
+      <button class="choice-btn" id="phoneSubmit" style="text-align:center;">Envoyer</button>
+    </div>
+  `;
+  document.getElementById('phoneSubmit').addEventListener('click', async ()=>{
+    const val = document.getElementById('phoneInput').value.trim();
+    if(!val) return;
+    STATE.phone = val;
+    await updateResponse({phone: val});
+    document.getElementById('choices').innerHTML = '';
+    const confirmMsg = `C'est noté, ${STATE.name}. Je te contacterai dans les jours à venir.`;
+    await typeInto(vnText, confirmMsg, 18);
+    await waitForContinue("Continuer");
+    showSocialLinks();
+  });
+}
+
+async function showSocialLinks(){
+  await typeInto(vnText, `Si ça ne te dérange pas de faire le premier pas, tu peux aussi me retrouver ici :`, 16);
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = `
+    <div class="social-row">
+      <a class="social-btn" href="https://wa.me/237621174104" target="_blank" rel="noopener">
+        <div class="social-icon wa">📱</div>
+        WhatsApp
+      </a>
+      <a class="social-btn" href="https://www.tiktok.com/@joel_valdo" target="_blank" rel="noopener">
+        <div class="social-icon tt">🎵</div>
+        TikTok
+      </a>
+      <a class="social-btn" href="https://www.snapchat.com/add/joelvaldo22" target="_blank" rel="noopener">
+        <div class="social-icon sc">👻</div>
+        Snapchat
+      </a>
+    </div>
+  `;
+  addSignatureOnce();
+}
+
+/* ================= ADMIN ================= */
+
+function renderAdminGate(){
+  app.innerHTML = `
+    <div class="admin-gate card">
+      <div class="eyebrow">Zone privée</div>
+      <h1 class="title" style="font-size:22px;">Accès admin</h1>
+      <input type="text" id="pwInput" placeholder="Clé d'accès" style="margin-top:10px;" />
+      <button class="btn" id="pwBtn">Entrer</button>
+      <p><a class="tiny-link" href="#" id="backLink">Retour au quiz</a></p>
+    </div>
+  `;
+  document.getElementById('backLink').addEventListener('click', (e)=>{ e.preventDefault(); location.hash=''; });
+  const pwBtn = document.getElementById('pwBtn');
+  const pwInput = document.getElementById('pwInput');
+  pwInput.addEventListener('keydown', e=>{ if(e.key==='Enter') pwBtn.click(); });
+  pwBtn.addEventListener('click', ()=>{
+    if(pwInput.value === ADMIN_PASSWORD){ renderAdminDashboard(); }
+    else { pwInput.style.borderColor = '#ff8a80'; pwInput.value=''; }
+  });
+}
+
+async function renderAdminDashboard(){
+  app.innerHTML = `<div class="admin-wrap"><p class="empty-state">Chargement…</p></div>`;
+
+  const { data: responses, error: respError } = await sb.from('quiz_responses').select('*').order('created_at', { ascending:false });
+  if(respError) console.error('Erreur de chargement des réponses :', respError);
+
+  const { data: questionRows, error: qError } = await sb.from('quiz_questions').select('*').order('position', { ascending:true });
+  if(qError) console.error('Erreur de chargement des questions :', qError);
+  const questions = (questionRows || []).map(row => ({ id: row.id, text: row.text, options: row.options, correctIndex: row.correct_index }));
+
+  const wrap = document.querySelector('.admin-wrap');
+  wrap.innerHTML = `
+    <div class="admin-top">
+      <div>
+        <div class="eyebrow">Dashboard</div>
+        <h1 class="title" style="font-size:24px;">Réponses reçues</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <a class="tiny-link" href="#" id="clearAllLink" style="color:var(--danger);">Tout supprimer</a>
+        <a class="tiny-link" href="#" id="toQuestionsLink">Gérer les questions →</a>
+      </div>
+    </div>
+    <div id="responsesZone"></div>
+    <div id="questionsZone" class="hidden"></div>
+  `;
+
+  document.getElementById('clearAllLink').addEventListener('click', async (e)=>{
+    e.preventDefault();
+    if(!responses || responses.length === 0) return;
+    if(!confirm(`Supprimer les ${responses.length} réponse(s) ? Cette action est irréversible.`)) return;
+    const { error } = await sb.from('quiz_responses').delete().not('id','is',null);
+    if(error){ alert("Erreur lors de la suppression."); return; }
+    renderAdminDashboard();
+  });
+
+  const responsesZone = document.getElementById('responsesZone');
+  if(!responses || responses.length === 0){
+    responsesZone.innerHTML = `<p class="empty-state">Aucune réponse pour l'instant.</p>`;
+  } else {
+    let rows = responses.map((r,i)=>{
+      const cls = r.score>=75?'high':(r.score>=45?'mid':'low');
+      const date = new Date(r.created_at).toLocaleString('fr-FR');
+      let more = r.wants_more === true ? 'Oui' : (r.wants_more === false ? 'Non' : '—');
+      let jeal = r.jealousy_reaction === 'fine' ? 'OK' : (r.jealousy_reaction==='bothers' ? 'Dérangée' : '—');
+      return `
+        <tr>
+          <td data-label="Prénom">${escapeHtml(r.name)}</td>
+          <td data-label="Score"><span class="pill ${cls}">${r.score}%</span></td>
+          <td data-label="Plus ample">${more}</td>
+          <td data-label="Jalousie">${jeal}</td>
+          <td data-label="Téléphone">${r.phone ? escapeHtml(r.phone) : '—'}</td>
+          <td data-label="Date">${date}</td>
+          <td data-label="Détails"><a class="tiny-link" data-idx="${i}" onclick="toggleDetail(${i})">voir</a></td>
+          <td data-label="Supprimer"><a class="tiny-link" data-del-resp="${r.id}" style="color:var(--danger);">supprimer</a></td>
+        </tr>
+        <tr id="detail-${i}" class="hidden detail-row"><td colspan="8"><div class="row-detail" id="detail-content-${i}"></div></td></tr>
+      `;
+    }).join('');
+    responsesZone.innerHTML = `
+      <table>
+        <thead><tr><th>Prénom</th><th>Score</th><th>Plus ample</th><th>Jalousie</th><th>Téléphone</th><th>Date</th><th></th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    responsesZone.querySelectorAll('[data-del-resp]').forEach(el=>{
+      el.addEventListener('click', async (e)=>{
+        e.preventDefault();
+        if(!confirm('Supprimer définitivement cette réponse ?')) return;
+        const id = el.getAttribute('data-del-resp');
+        const { error } = await sb.from('quiz_responses').delete().eq('id', id);
+        if(error){ alert("Erreur lors de la suppression."); return; }
+        renderAdminDashboard();
+      });
+    });
+    window.__adminResponses = responses;
+  }
+
+  document.getElementById('toQuestionsLink').addEventListener('click', (e)=>{
+    e.preventDefault();
+    document.getElementById('responsesZone').classList.add('hidden');
+    document.getElementById('toQuestionsLink').classList.add('hidden');
+    renderQuestionsManager(questions);
+  });
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+window.toggleDetail = function(i){
+  const row = document.getElementById('detail-' + i);
+  const content = document.getElementById('detail-content-' + i);
+  if(row.classList.contains('hidden')){
+    const r = window.__adminResponses[i];
+    content.innerHTML = r.answers.map(a=>`
+      <div style="margin-bottom:8px;">
+        <div style="color:var(--text);">${escapeHtml(a.question)}</div>
+        <div>Réponse : ${escapeHtml(a.chosen)} ${a.isMatch ? '✅' : '❌ (Joël : '+escapeHtml(a.correctAnswer)+')'}</div>
+      </div>
+    `).join('');
+    row.classList.remove('hidden');
+  } else {
+    row.classList.add('hidden');
+  }
+};
+
+function renderQuestionsManager(questions){
+  const wrap = document.querySelector('.admin-wrap');
+  wrap.innerHTML = `
+    <div class="admin-top">
+      <div>
+        <div class="eyebrow">Configuration</div>
+        <h1 class="title" style="font-size:24px;">Questions du quiz</h1>
+      </div>
+      <div><a class="tiny-link" href="#" id="backToResponses">← Réponses</a></div>
+    </div>
+    <div id="qList"></div>
+    <div class="card" style="margin-top:20px;">
+      <div class="eyebrow">Ajouter une question</div>
+      <label class="small">Intitulé</label>
+      <input type="text" id="newQText" placeholder="Ta question" />
+      <label class="small">Options (coche celle qui est ta bonne réponse)</label>
+      <div id="newOptsZone"></div>
+      <button class="btn secondary" id="addQuestionBtn" style="margin-top:14px;">Ajouter la question</button>
+    </div>
+  `;
+  document.getElementById('backToResponses').addEventListener('click',(e)=>{ e.preventDefault(); renderAdminDashboard(); });
+
+  const qList = document.getElementById('qList');
+  qList.innerHTML = questions.map((q,i)=>`
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;margin-bottom:8px;">${i+1}. ${escapeHtml(q.text)}</div>
+      ${q.options.map((o,oi)=>`<div style="font-size:13px;color:${oi===q.correctIndex?'var(--gold)':'var(--text-dim)'};margin-bottom:3px;">${oi===q.correctIndex?'★ ':'— '}${escapeHtml(o)}</div>`).join('')}
+      <a class="tiny-link" href="#" data-del="${i}" style="color:var(--danger);display:inline-block;margin-top:8px;">Supprimer</a>
+    </div>
+  `).join('');
+  qList.querySelectorAll('[data-del]').forEach(el=>{
+    el.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const i = parseInt(el.getAttribute('data-del'));
+      const q = questions[i];
+      const { error } = await sb.from('quiz_questions').delete().eq('id', q.id);
+      if(error){ alert("Erreur lors de la suppression."); return; }
+      questions.splice(i,1);
+      renderQuestionsManager(questions);
+    });
+  });
+
+  const optsZone = document.getElementById('newOptsZone');
+  optsZone.innerHTML = [0,1,2,3].map(i=>`
+    <div class="q-opt-row">
+      <input type="radio" name="correctOpt" value="${i}" ${i===0?'checked':''} />
+      <input type="text" class="opt-input" data-i="${i}" placeholder="Option ${i+1}" style="flex:1;" />
+    </div>
+  `).join('');
+
+  document.getElementById('addQuestionBtn').addEventListener('click', async ()=>{
+    const text = document.getElementById('newQText').value.trim();
+    const opts = Array.from(document.querySelectorAll('.opt-input')).map(inp=>inp.value.trim());
+    const correctRadio = document.querySelector('input[name=correctOpt]:checked');
+    if(!text || opts.some(o=>!o)){ alert('Complète la question et les 4 options.'); return; }
+    const { data, error } = await sb.from('quiz_questions')
+      .insert({ text, options: opts, correct_index: parseInt(correctRadio.value), position: questions.length })
+      .select();
+    if(error || !data){ alert("Erreur lors de l'ajout de la question."); return; }
+    const row = data[0];
+    questions.push({ id: row.id, text: row.text, options: row.options, correctIndex: row.correct_index });
+    renderQuestionsManager(questions);
+  });
+}
+</script>
+</body>
+</html>
